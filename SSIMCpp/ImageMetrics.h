@@ -37,11 +37,34 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   Send fixes and comments to WWW.LOMONT.ORG
 */
 
+/* Notes:
 
-/*
-todo - merge notes from C# one
+ 1. These is not designed for performance. It's designed to be correct and clear.
+ 2. Often these are called Y-SSIM, Y-PSNR, etc., meaning uses the Y (gray) channel.
+ 3. SSIM operates on one grayscale channel with values in 0-1.
+    To convert RGB values, first convert btyes to 0-1 via val/255.0, then use the
+    provided Rgb2Gray function below, which matches the original SSIM implementation.
+ 4. There is no standard way to handle colors. Some people process each of the R,G,B
+    channels and average them. See the blog post at https://lomont.org/posts/2023/ssim/
+ 5. This code matches the original results at https://www.cns.nyu.edu/~lcv/ssim/ for the
+    six Einstein image tests and the 982 tests in the LIVE database.
+ 6. The original SSIM did not mention a color space, original test images were sRGB.
 
-*/
+See included files at https://github.com/ChrisLomont/SSIM for usage.
+
+References:
+    (1) Z. Wang and A. C. Bovik, “A universal image quality index,” IEEE Signal Processing Letters, vol. 9, pp. 81–84, Mar. 2002.
+    (2) "MULTI-SCALE STRUCTURAL SIMILARITY FOR IMAGE QUALITY ASSESSMENT", Wang, Simoncelli, Bovik, 2003,
+        https://ece.uwaterloo.ca/~z70wang/publications/msssim.pdf
+    (3) Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: From error measurement to structural similarity,”
+        IEEE Trans. Image Processing, vol. 13, Jan. 2004. https://www.cns.nyu.edu/pub/lcv/wang03-preprint.pdf
+    (4) "Understanding SSIM," Jim Nillson and Tomas Akenine-Moller, 2020 https://arxiv.org/pdf/2006.13846.pdf
+    (5) "Mean Squared Error: Love It or Leave It?," Wang, Bovik, 2009, https://ece.uwaterloo.ca/~z70wang/publications/SPM09.pdf
+
+TODO:
+    - add MS-SSIM, CW-SSIM
+    - allow reuse of the Gaussian filter
+ */
 
 /* History:
  * June 2023
@@ -356,9 +379,8 @@ namespace Lomont::Graphics {
 
             // filter range
             int fa = -size / 2, fb = size / 2; // these round towards 0
-            if ((size & 1) == 0) // even sized filter?
-                fa++; // even, shifts right (center of filter [1,2,3,4] is 2)  (todo - makes result not 90, 180, 270 degree symmetric)
-            //assert(fb-fa+1 == size);
+            if ((size & 1) == 0) // even sized filter
+                fa++; // even, shifts right (center of filter [1,2,3,4] is 2) (makes result not 90, 180, 270 degree symmetric)
 
             // loop over dest
             for (int j = 0; j < h; ++j)

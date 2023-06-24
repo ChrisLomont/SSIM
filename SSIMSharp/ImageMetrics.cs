@@ -36,114 +36,32 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 /* Notes:
- todo - sync
-not designed for performance - designed to be correct and portable - compare your high erpformance ones to this to ensure quality matches
-Notes:
-- these operate on single channel grayscale
-- often called Y-PSNR, Y-SSIM, etc.
-- to do color: explain....
-- See SSIM notes below for a lot of issues with SSIM in general
-- todo - my blog post
-- example code, say loading stbi headers, etc..
+ 
+ 1. These is not designed for performance. It's designed to be correct and clear.
+ 2. Often these are called Y-SSIM, Y-PSNR, etc., meaning uses the Y (gray) channel.
+ 3. SSIM operates on one grayscale channel with values in 0-1. 
+    To convert RGB values, first convert btyes to 0-1 via val/255.0, then use the
+    provided Rgb2Gray function below, which matches the original SSIM implementation.
+ 4. There is no standard way to handle colors. Some people process each of the R,G,B 
+    channels and average them. See the blog post at https://lomont.org/posts/2023/ssim/
+ 5. This code matches the original results at https://www.cns.nyu.edu/~lcv/ssim/ for the
+    six Einstein image tests and the 982 tests in the LIVE database.
+ 6. The original SSIM did not mention a color space, original test images were sRGB.
 
-/* Usage
- * # https://stackoverflow.com/questions/71567315/how-to-get-the-ssim-comparison-score-between-two-images
+See included files at https://github.com/ChrisLomont/SSIM for usage. 
 
- # images and test values from https://www.cns.nyu.edu/~lcv/ssim/
+References:
+    (1) Z. Wang and A. C. Bovik, “A universal image quality index,” IEEE Signal Processing Letters, vol. 9, pp. 81–84, Mar. 2002.
+    (2) "MULTI-SCALE STRUCTURAL SIMILARITY FOR IMAGE QUALITY ASSESSMENT", Wang, Simoncelli, Bovik, 2003,
+        https://ece.uwaterloo.ca/~z70wang/publications/msssim.pdf
+    (3) Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: From error measurement to structural similarity,”
+        IEEE Trans. Image Processing, vol. 13, Jan. 2004. https://www.cns.nyu.edu/pub/lcv/wang03-preprint.pdf
+    (4) "Understanding SSIM," Jim Nillson and Tomas Akenine-Moller, 2020 https://arxiv.org/pdf/2006.13846.pdf
+    (5) "Mean Squared Error: Love It or Leave It?," Wang, Bovik, 2009, https://ece.uwaterloo.ca/~z70wang/publications/SPM09.pdf
 
-
- # refimgs\studentsculpture.bmp jp2k\img2.bmp 0.981891
-
- *
- * mostly wrong
- 1. Most of these metrics operate on a grayscale image
- 2. Grayscale should be in linear space, except possibly for SSIM, which did not define a color space in the paper. Use gamma 2.2 there sees ok
- 3. These are sometimes called Y-MSE, Y-PSNR, Y-SSIM, for the Y (grayscale) channel
- 4. Simple helpers are provides for sRGB gamma to linear and linear rgb to grayscale (rec601)
- TODO
- 1. explain how to do color, how most are Y-SSIM, Y-MSE, etc. avg colors?
- 2. include self tests
- 3. simple grayscale, gamma (sRGB, 2.2?)
- 4. explain image formats, what color space they generally are in
- 5. incporporate test PNG https://upload.wikimedia.org/wikipedia/commons/c/c9/Srgbnonlinearity.png, save as PPM?
- 6. Simple usage code example
- */
-
-
-/* SSIM Notes
-
-Test images at http://www.cns.nyu.edu/~lcv/ssim/#test
-also has (no longer linked) full database of images and SSIM scores
-
-SSIM:
-     x = {x1,x2,...,xN}, y = {y1,y2,...,yN} discrete, non-negative signals (images, etc.)
-     ux, uy = mean of x and y, = (1/N) Sum xi
-     σx^2, σy^2 = variance = (1/(N-1)) Sum(xi-ux)^2
-     σxy = covariance = (1/(N-1))Sum(xi-ux))(yi-uy)
-     then luminance, contrast, structure comparison measures:
-
-     l(x,y) = (2 ux uy + C1)/(ux^2 + uy^2 + C1)
-     c(x,y) = (2 σx σy + C2)/(σx^2 + σy^2 + C2)
-     s(x,y) = (σxy + C3) / (σx σy + C3)
-
-     C1 = (K1 L)^2, C2 = (K2 L)^2, C3 = C2/2
-
-     L = dynamic range of values (255 for 8 bit pixels, 1 for 0-1 floating point, ...)
-
-     K1, K2 << 1 (todo - what is std def?)
-
-     SSIM(x,y) = l(x,y)^α * c(x,y)^β * s(x,y)^γ
-
-     α = β = γ = 1 sets all three components equally important
-
-     1. SSIM(x,y) = SSIM(y,x)
-     2. SSIM(x,y) <= 1
-     3. SSIM(x,y) = 1 iff x = y
-
-     for MSSIM (mean SSIM)
-     Compute over all M of the BxB subimages in image, return average of these. Paper (3) used B = 8
-
-     paper (1) uses C1 = C2 = 0, but can div by 0, unstable, so (3) sets K1 = 0.01 and K2 = 0.03
-     todo - get paper refs
-
-     (3) added 11x11 gaussian weighting function wi, std dev 1.5 samples, normalized to sum(wi) = 1
-     then use
-     mean = Sum wi * xi
-      std dev = sqrt(variance) = sqrt( Sum wi (xi-ux)^2 )
-     σxy = covariance = Sum wi * (xi-ux))(yi-uy)
-
-     (1) Z. Wang and A. C. Bovik, “A universal image quality index,” IEEE Signal Processing Letters, vol. 9, pp. 81–84, Mar. 2002.
-     (2) "MULTI-SCALE STRUCTURAL SIMILARITY FOR IMAGE QUALITY ASSESSMENT", Wang, Simoncelli, Bovik, 2003,
-         https://ece.uwaterloo.ca/~z70wang/publications/msssim.pdf
-     (3) Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: From error measurement to structural similarity,”
-         IEEE Trans. Image Processing, vol. 13, Jan. 2004. https://www.cns.nyu.edu/pub/lcv/wang03-preprint.pdf
-     (4) "Understanding SSIM," Jim Nillson and Tomas Akenine-Moller, 2020 https://arxiv.org/pdf/2006.13846.pdf
-     (5) "Mean Squared Error: Love It or Leave It?," Wang, Bovik, 2009, https://ece.uwaterloo.ca/~z70wang/publications/SPM09.pdf
-
-       NOTE from (4), "The input color space of SSIM is never defined. As the
-       reference Matlab script performs no color space transformations on
-       inputs, our assumption throughout this paper is that all images
-       are encoded in sRGB color space, i.e., approximately gamma
-       encoded with an exponent ≈ 2.4. Note that this means that an
-       image that is loaded by the SSIM script is assumed to be viewed
-       directly on screen as is. For two images A and B, the original
-       formula [19] for per-pixel SSIM is given by
-
-
-       matlab rgb2gray 0.2989 * R + 0.5870 * G + 0.1140 * B https://www.mathworks.com/help/matlab/ref/rgb2gray.html
-       Rec.ITU-R BT.601-7 calculates E'y using the following formula:
-       0.299 * R + 0.587 * G + 0.114 * B
-
-     
-
-TODO:
-- add MS-SSIM, CW-SSIM
-c++ reuse gaussian filter?
-            // 3 channel PSNR idea https://dsp.stackexchange.com/questions/71845/defining-the-snr-or-psnr-for-color-images-3-channel-rgb-files
-            // see also https://groups.google.com/g/sci.image.processing/c/0iypIGoJf7g
-
-
-
+TODO: 
+    - add MS-SSIM, CW-SSIM
+    - allow reuse of the Gaussian filter
  */
 
 /* History:
@@ -462,8 +380,7 @@ public static class ImageMetrics
         // filter range
         int fa = -size / 2, fb = size / 2; // these round towards 0
         if ((size & 1) == 0) // even sized filter?
-            fa++; // even, shifts right (center of filter [1,2,3,4] is 2)  (todo - makes result not 90, 180, 270 degree symmetric)
-        //assert(fb-fa+1 == size);
+            fa++; // even, shifts right (center of filter [1,2,3,4] is 2) (makes result not 90, 180, 270 degree symmetric)
 
         // loop over dest
         for (int j = 0; j < h; ++j)
