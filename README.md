@@ -1,8 +1,8 @@
 # Problems using the SSIM image quality metric
 
-Chris Lomont, 2023, www.lomont.org
+Chris Lomont, 2023, www.lomont.org, blog [post](https://github.com/ChrisLomont/SSIM).
 
-TL;DR; Get the code! TODO link
+**TL;DR;** [Get the code!](https://github.com/ChrisLomont/SSIM)
 
 ## Introduction
 
@@ -68,7 +68,7 @@ print(scipy.io.loadmat('refnames_all.mat'))
 
 The resulting text files were munged to get a [text file with 982 lines](allcompares.txt), each with two files to compare and the truth SSIM score. This was ran through all the versions above (Python script for many [here](test_SSIM.py)). All of them failed since none of them implement the downsampling correctly from the authors website. This is used to handle changes in pixel size compared to resolution of the human visual system: a change in a tiny pixel should have less effect than a change in a large pixel, but all the above ignore this. All have a max error of ~0.300 of SSIM, which is astounding, and have an average error of ~0.070, which is still quite significant.
 
-## Error causes
+## Causes of errors
 
 The large variation is the result of 
 
@@ -141,9 +141,13 @@ https://stackoverflow.com/questions/41944970/the-interpretation-of-scikit-image-
 
 # Code
 
+
+
 With such large and inconsistent variation you cannot rely on published SSIM values without lots of legwork to figure out what they did, perhaps having to redo their work.
 
 How did I make mine? TODO - rev engineered, careful math, noting each psosible interprestation of the paper, and tresting the combinations to find this one. Final bug somewhere allowing max error of 0.001, which should not exist. matlab proprietary hard for people to use
+
+
 
 # References
 
@@ -159,14 +163,14 @@ How did I make mine? TODO - rev engineered, careful math, noting each psosible i
 
 1. images relative
 1. add links to https://github.com/ChrisLomont/SSIM
-1. 
+1. https://lomont.org/posts/2023/ssim/
 2. code prepared (C++, C#)
 3. examples in python
 4. octave code
 5. c++ history in header
 6. pub to blog and github
 7. edit files to self link
+7. update code on old website - add link or forwarding?
 8. match comments in C++/C# code
 10. remove spaces in C++, C# code
-10. add rotation error numbers  in error section
-10. publish to work, tell zaur, ask him/ren/?? to check work version
+10. 
