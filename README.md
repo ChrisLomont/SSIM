@@ -1,4 +1,4 @@
-# Problems using the SSIM image quality metric
+# Problems using SSIM for image quality comparisons
 
 Chris Lomont, 2023, www.lomont.org, blog [post](https://github.com/ChrisLomont/SSIM).
 
@@ -42,13 +42,21 @@ However, if you take multiple existing implementations of SSIM, you end up with 
 | Avg error on LIVE | **0.000** | 0.075     | 0.081      | 0.081           | 0.081      |           |            |           | **0.000**         |
 
 [1] SSIM author provided MATLAB script at https://www.cns.nyu.edu/~lcv/ssim/ treated as the correct SSIM values.
+
 [2] A popular Python library https://pypi.org/project/SSIM-PIL/ based on the imaging library Pillow.
+
 [3] The Python `scikit-image` implementation ([example](https://scikit-image.org/docs/stable/auto_examples/transform/plot_ssim.html) , [docs](https://scikit-image.org/docs/stable/api/skimage.metrics.html), see [StackOverflow post](https://stackoverflow.com/questions/58604326/which-ssim-is-correct-skimage-metrics-structural-similarity)). Getting this to match took a lot of parameter fiddling.
+
 [4] A commonly used pytorch implementation https://pypi.org/project/IQA-pytorch/.
+
 [5] A version on the OpenCV website https://docs.opencv.org/3.4/d5/dc4/tutorial_video_input_psnr_ssim.html.
+
 [6] An [independent version](http://mehdi.rabah.free.fr/SSIM/) linked from the SSIM site.
+
 [7] Another [independent version](https://kornel.ski/dssim) linked from the original site.
+
 [8] The original MATLAB code running on [GNU Octave](https://octave.org/), which is "Drop-in compatible with many MATLAB scripts". 
+
 [9] My [single file C++ and C# versions](https://github.com/ChrisLomont/SSIM), which match.
 
 I want to call attention to the facts that even the independent reference implementations [6,7] linked from the original SSIM site differ significantly from each other and from the original version!  The authors MATLAB code run as-is on the open source GNU Octave returns different values. So perhaps the split in quality happened quickly and spread early....
@@ -75,10 +83,10 @@ The large variation is the result of
 1. The original implementation is in MATLAB, with much of the work done by internal MATLAB algorithms that are not clearly specified, making re-implementation difficult.
 2. The original paper is only for grayscale, and that is not even well specified (linear? gamma compressed?). Author test images are generally done in sRGB (get pixels from file, use rgb2Gray for color, pass grayscale into SSIM). The lack of color awareness is demonstrated with the Lenna images in the Introduction above. In practice, some implementations use linear spaces, others do not, most ignore it simply reading files, leading to more variety.
 3. People reading the paper had to make choices for unspecified behavior. Such behavior includes
-   1. Normalizing the Gaussian filter (or not)
-   2. How to align even sized subsampling filters. 
-   3. How to handle image reflection at boundaries
-   4. How to convert color to grayscale. The original uses MATLABs `rgb2gray` which uses a [slightly nonstandard method](https://www.mathworks.com/help/matlab/ref/rgb2gray.html) that replaces the Rec.601 red coefficient of 0.299 with the value 0.2989. Looking into code history shows the MATLAB version was created before sRGB was standardized.
+   * Normalizing the Gaussian filter (or not)
+   * How to align even sized subsampling filters. 
+   * How to handle image reflection at boundaries
+   * How to convert color to grayscale. The original uses MATLABs `rgb2gray` which uses a [slightly nonstandard method](https://www.mathworks.com/help/matlab/ref/rgb2gray.html) that replaces the Rec.601 red coefficient of 0.299 with the value 0.2989. Looking into code history shows the MATLAB version was created before sRGB was standardized.
 4. The lack of defined color versions has led to many different ways of handling color images, many not specified in documentation, yet all are called SSIM. More details are below.
 
 Some issues with SSIM as specified:
@@ -105,18 +113,18 @@ If you want to poke more, start with the wikipedia articles on [YCbCr](https://e
 
 If you want color sensitivity, here are some methods in use, none of which are standardized (so you have to very careful comparing your results and your code to other published results):
 
-	1. Perform SSIM on three channels independently and weight them
-	2. R'G'B' weights are [generally 1/3 each](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
-	3. Some implementations treat the image as a WxHx3 tensor, and accidentally filter across all three channels, which is not the same as independently computing per channel and averaging. [MATLAB uses the 3 tensor (less correct in my opinion), Julialang uses the per channel, and they get different results](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
-	4. Convert to Y'CbCr , do each component, and weight them. This is fraught with errors. Some examples
-    * There are many papers (e.g., [here](https://hpcf.umbc.edu/research-projects-hpcf/color-differencing-structural-similarity-index-metric-cd-ssim/), [here](https://ieeexplore.ieee.org/document/8079929), [here](https://ieeexplore.ieee.org/document/7351345), [here](https://www.spiedigitallibrary.org/journals/journal-of-electronic-imaging/volume-25/issue-06/063015/Improved-structural-similarity-metric-for-the-visible-quality-measurement-of/10.1117/1.JEI.25.6.063015.full?SSO=1)) promoting many methods, but none seem to be dominant in practice
-    * The weights chosen vary
-      *  [Here](https://github.com/thorfdbg/ssim/blob/master/ReadMe) are weights of 0.95, 0.02, 0.03
-      * The SSIM authors have a later paper [3] using the weights 0.8, 0.1, 0.1 (note this paper says luminance, but as usual the code and their results are not in linear space!)
-      * Other papers have criticized these choices as failing often, see reference [2]
-      * Y, Cb, Cr channel ranges are not the same, so averaging may make a mess. Be careful!
-	5. Use other (rarer) color spaces. For example, https://pngquant.org/dssim.html uses L * a * b * space (quite rate for SSIM) 
-    * This method even subsamples chroma, which is certainly nonstandard, yet the result is called SSIM!
+1. Perform SSIM on three channels independently and weight them
+2. RGB weights are [generally 1/3 each](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
+3. Some implementations treat the image as a WxHx3 tensor, and accidentally filter across all three channels, which is not the same as independently computing per channel and averaging. [MATLAB uses the 3 tensor (less correct in my opinion), Julialang uses the per channel, and they get different results](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
+4. Convert to Y'CbCr , do each component, and weight them. This is fraught with errors. Some examples
+   * There are many papers (e.g., [here](https://hpcf.umbc.edu/research-projects-hpcf/color-differencing-structural-similarity-index-metric-cd-ssim/), [here](https://ieeexplore.ieee.org/document/8079929), [here](https://ieeexplore.ieee.org/document/7351345), [here](https://www.spiedigitallibrary.org/journals/journal-of-electronic-imaging/volume-25/issue-06/063015/Improved-structural-similarity-metric-for-the-visible-quality-measurement-of/10.1117/1.JEI.25.6.063015.full?SSO=1)) promoting many methods, but none seem to be dominant in practice
+   * The weights chosen vary
+     *  [Here](https://github.com/thorfdbg/ssim/blob/master/ReadMe) are weights of 0.95, 0.02, 0.03
+     * The SSIM authors have a later paper [3] using the weights 0.8, 0.1, 0.1 (note this paper says luminance, but as usual the code and their results are not in linear space!)
+     * Other papers have criticized these choices as failing often, see reference [2]
+     * Y, Cb, Cr channel ranges are not the same, so averaging may make a mess. Be careful!
+5. Use other (rarer) color spaces. For example, https://pngquant.org/dssim.html uses L * a * b * space (quite rate for SSIM) 
+   * This method even subsamples chroma, which is certainly nonstandard, yet the result is called SSIM!
 
 As a result of this mess, it's really hard to compare results from different groups claiming SSIM. Trying to reproduce results from such papers has always been such a mess that I rarely even try any more - it's a crapshoot.
 
