@@ -14,7 +14,7 @@ Most of the problems come from the original implementation being in MATLAB, whic
 
 This large and inconsistent variation among SSIM implementations makes it hard to trust or compare published numbers between papers. The original paper doesn't define how to handle color images, and doesn't even specify what color space the grayscale values, adding to the mess that is current use of SSIM. For example, the following images are rated as visually perfect by SSIM as published. The paper [2] demonstrates so many issues with trying to use SSIM with color images that they state "we advise not to use SSIM with color images". 
 
-| ![color_lenna](images\color_lenna.bmp) | ![mixed1_lenna](images\mixed1_lenna.bmp) | ![mixed2_lenna](images\mixed2_lenna.bmp) |
+| ![color_lenna](images/color_lenna.bmp) | ![mixed1_lenna](images/mixed1_lenna.bmp) | ![mixed2_lenna](images/mixed2_lenna.bmp) |
 | :------------------------------------: | :--------------------------------------: | :--------------------------------------: |
 |             **SSIM 1.000**             |              **SSIM 1.000**              |              **SSIM 1.000**              |
 
@@ -24,9 +24,9 @@ All of this is a shame since the underlying concept is pretty good. A good first
 
 For example, [the SSIM author's website](https://www.cns.nyu.edu/~lcv/ssim/) has the following example images with SSIM scores (each compared to the upper left Einstein image):
 
-| ![einstein](images\einstein.gif) <br />Original: MSE=0, SSIM = 1 | ![meanshift](images\meanshift.gif)<br />Meanshift: MSE=144, SSIM=0.988 | ![contrast](images\contrast.gif)<br />Contrast: MSE=144, SSIM=0.913 |
+| ![einstein](images/einstein.gif) <br />Original: MSE=0, SSIM = 1 | ![meanshift](images/meanshift.gif)<br />Meanshift: MSE=144, SSIM=0.988 | ![contrast](images/contrast.gif)<br />Contrast: MSE=144, SSIM=0.913 |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ![impulse](images\impulse.gif)<br />**Impulse: MSE=144, SSIM = 0.840** | ![blur](images\blur.gif)<br />**Blur: MSE=144, SSIM=0.694**  | ![jpg](images\jpg.gif)<br />**Jpg: MSE=142, SSIM=0.662**     |
+| ![impulse](images/impulse.gif)<br />**Impulse: MSE=144, SSIM = 0.840** | ![blur](images/blur.gif)<br />**Blur: MSE=144, SSIM=0.694**  | ![jpg](images/jpg.gif)<br />**Jpg: MSE=142, SSIM=0.662**     |
 
 However, if you take multiple existing implementations of SSIM, you end up with something like the next table (notes [1] - [9] following). The left column is the **truth** values from the author site above using [their MATLAB implementation](https://www.cns.nyu.edu/~lcv/ssim/ssim.m) of the algorithm. Values close ($\pm 0.001$) to the **truth** are in **bold**. The bottom two rows on the [LIVE image dataset](https://live.ece.utexas.edu/research/Quality/subjective.htm) are described below.
 
@@ -158,6 +158,8 @@ How did I make mine? TODO - rev engineered, careful math, noting each psosible i
 # TODO - 
 
 1. images relative
+1. add links to https://github.com/ChrisLomont/SSIM
+1. 
 2. code prepared (C++, C#)
 3. examples in python
 4. octave code
