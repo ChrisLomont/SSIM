@@ -122,13 +122,15 @@ As a result of this mess, it's really hard to compare results from different gro
 
 # Code
 
-To make the [current version of the code](https://github.com/ChrisLomont/SSIM), I took my current version of my existing code (which was not as correct as this one, and unfortunately has been added to many other projects over time since it was an early freely available version....), and one by one chased all bugs out, tracking down how the MATLAB script and code worked, and did testing across possible choices until I obtained a match.
+To make the [current version of the code](https://github.com/ChrisLomont/SSIM), I took my existing code (originally made in 2006 or so, posted online around 2008, used by many people in many things since then, unfortunately, since it was also not correct like these new versions), and one by one chased all bugs out, tracking down how the MATLAB script and code worked, and did testing across possible choices until I obtained a match.
 
-I didn't find any serious errors in the original - I was afraid I would, which would wreck this project since I didn't want to re-implement some obviously wrong algorithms. One place that did bother me, but is only a small difference, is the non-standard `rgb2gray` conversion traced back to the MATLAB routine.
+I didn't find any serious errors in the original - I was afraid I would, which would wreck this project since I didn't want to re-implement some incorrect algorithms or mimic really bad bugs. One place that did bother me, but is only a small difference, is the non-standard `rgb2gray` conversion traced back to the MATLAB routine mentioned elsewhere in this document.
 
 There is still likely some small bug since I am off by 0.001 max error on the LIVE dataset test above.
 
 To port to another platform, be sure you understand how C# and C++ handle numerics. Different languages handle integer division differently (C# and C++ keep as an integer, round towards 0) (some languages convert to floating point or have different rounding conventions).
+
+Good luck, and please push an equivalent SSIM to this one into as many libraries as possible. If you find any errors, or reasons I should not mimic the original, please notify me.
 
 # References
 
