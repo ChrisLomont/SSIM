@@ -92,66 +92,43 @@ There is ample literature covering some of these issues. A good intro is ["Under
 
 ## Color issues
 
-As mentioned above, SSIM doesn't deal with color errors well, since it's only defined on grayscale issues. 
+As mentioned above, SSIM doesn't deal with color errors well, since it's only defined on grayscale issues.  Many methods have been used to make SSIM variants that are color aware; most do some form of channel averaging in some color space.
 
-Images found on internet are gamma encoded 2.2 sRGB, not quite https://stackoverflow.com/questions/58203124/how-do-i-tell-if-an-image-is-gamma-encoded-when-imported-to-numpy
+Of those methods not simply operating on RGB channels, most use some variant of YCbCr or YUV color spaces. Unfortunately, confusion on the differences between Y'CbCr and YCbCr (as well as simply conflating them), between luma and luminance, uncertainty on if images are in 'linear' or 'gamma' spaces (which is not often well defined), and if your image library already fiddles with gamma or not, all lead to a huge mess that would take too long to unwind here.
 
-TODO - rethink, check items here?
+So, for brevity, and since I think this is the best case (and how the authors used their code):
 
-are images gamma stored?
+1. Open an image, and take the given pixels. Most images without specific color space information can be assumed to be sRGB. 
+2. Use those bytes as SSIM input. For my code, convert each byte from 0-255 to 0-1 via val/255.0, and convert red, green, and blue values to gray via the included function that mimics the original.
 
-Many methods have been used to make SSIM variants that are color aware. However, there is in general a huge mess in algorithms on the web that conflate Y'CbCr and YCbCr (note the ' on Y'), further confusing what the SSIM variations and values represent. Y' is luma, Y is luminance. Luminance is computed from linear RGB; luma is computed from gamma encoded R'G'B'. Most of this confusion comes from not being able to use ' in symbol names in code, then people copy that code, then people conflate the two over time.
+If you want to poke more, start with the wikipedia articles on [YCbCr](https://en.wikipedia.org/wiki/YCbCr), read and notice the differences between luma and luminance, between YCbCr and Y'CbCr, between RGB and R'G'B', and learn details about gamma and linear images. Another good site is [https://www.cambridgeincolour.com](https://www.cambridgeincolour.com), especially the article on [gamma correction](https://www.cambridgeincolour.com/tutorials/gamma-correction.htm).
 
-Note the authors in many papers use the term luminance, but their code and results are based on luma!
+If you want color sensitivity, here are some methods in use, none of which are standardized (so you have to very careful comparing your results and your code to other published results):
 
-Since the original SSIM works (not explicitely, but in practice) in the gamma compressed sRGB space (actually R'G'B' !), the following TODO
+	1. Perform SSIM on three channels independently and weight them
+	2. R'G'B' weights are [generally 1/3 each](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
+	3. Some implementations treat the image as a WxHx3 tensor, and accidentally filter across all three channels, which is not the same as independently computing per channel and averaging. [MATLAB uses the 3 tensor (less correct in my opinion), Julialang uses the per channel, and they get different results](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
+	4. Convert to Y'CbCr , do each component, and weight them. This is fraught with errors. Some examples
+    * There are many papers (e.g., [here](https://hpcf.umbc.edu/research-projects-hpcf/color-differencing-structural-similarity-index-metric-cd-ssim/), [here](https://ieeexplore.ieee.org/document/8079929), [here](https://ieeexplore.ieee.org/document/7351345), [here](https://www.spiedigitallibrary.org/journals/journal-of-electronic-imaging/volume-25/issue-06/063015/Improved-structural-similarity-metric-for-the-visible-quality-measurement-of/10.1117/1.JEI.25.6.063015.full?SSO=1)) promoting many methods, but none seem to be dominant in practice
+    * The weights chosen vary
+      *  [Here](https://github.com/thorfdbg/ssim/blob/master/ReadMe) are weights of 0.95, 0.02, 0.03
+      * The SSIM authors have a later paper [3] using the weights 0.8, 0.1, 0.1 (note this paper says luminance, but as usual the code and their results are not in linear space!)
+      * Other papers have criticized these choices as failing often, see reference [2]
+      * Y, Cb, Cr channel ranges are not the same, so averaging may make a mess. Be careful!
+	5. Use other (rarer) color spaces. For example, https://pngquant.org/dssim.html uses L * a * b * space (quite rate for SSIM) 
+    * This method even subsamples chroma, which is certainly nonstandard, yet the result is called SSIM!
 
-Assume R'G'B' colors, each in [0,1] 
-
-1. Perform SSIM on three channels independently and weight them
-2. R'G'B' weights are [generally 1/3 each](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
-3. Some implementations treat the image as a WxHx3 tensor, and accidentally filter across all three channels, which is not the same as independently computing per channel and averaging. [MATLAB uses the 3 tensor (less correct in my opinion), Julialang uses the per channel, and they get different results](https://dsp.stackexchange.com/questions/75187/how-to-apply-the-ssim-measure-on-rgb-images)
-4. Convert to Y'CbCr , do each component, and weight them. This is fraught with errors. Some examples
-5. There are many papers (e.g., [here](https://hpcf.umbc.edu/research-projects-hpcf/color-differencing-structural-similarity-index-metric-cd-ssim/), [here](https://ieeexplore.ieee.org/document/8079929), [here](https://ieeexplore.ieee.org/document/7351345), [here](https://www.spiedigitallibrary.org/journals/journal-of-electronic-imaging/volume-25/issue-06/063015/Improved-structural-similarity-metric-for-the-visible-quality-measurement-of/10.1117/1.JEI.25.6.063015.full?SSO=1)) promoting many methods, but none seem to be dominant in practice
-
-1. 1. The weights chosen vary
-      1.  [Here](https://github.com/thorfdbg/ssim/blob/master/ReadMe) are weights of 0.95, 0.02, 0.03
-      2. The authors have a later paper [3] using the weights 0.8, 0.1, 0.1 (note this paper says luminance, but as usual the code and their results are not in linear space!)
-      3. Other papers have criticized these choices as failing often, see reference [2]
-   2. The channel ranges are not the same, so averaging may make a mess?!
-   3. 
-2. Convert to YCbCr - this is generally a mistake!
-3. Use other (rarer) color spaces, e.g., 
-
-Many places make even rarer choices. For example, https://pngquant.org/dssim.html uses L * a * b * space (quite rate for SSIM) then even does chroma subsampling, which I've only seen on this version, so will certainly not match many places. Yet this code gets used and people use these 'SSIM' values to compare to other algorithms....
-
-https://stackoverflow.com/questions/41944970/the-interpretation-of-scikit-image-ssim-structural-similarity-image-metric-neg negative values
+As a result of this mess, it's really hard to compare results from different groups claiming SSIM. Trying to reproduce results from such papers has always been such a mess that I rarely even try any more - it's a crapshoot.
 
 # Code
 
-To make the current version of the code, I took my current update of my existing code (which was not as correct as this one, and unfortunately has been added to many other projects over time since it was an early freely available version....), and one by one chased all bugs out, tracking down how the MATLAB script and code worked, and did testing across possible choices until I obtained a match.
+To make the [current version of the code](https://github.com/ChrisLomont/SSIM), I took my current version of my existing code (which was not as correct as this one, and unfortunately has been added to many other projects over time since it was an early freely available version....), and one by one chased all bugs out, tracking down how the MATLAB script and code worked, and did testing across possible choices until I obtained a match.
 
 I didn't find any serious errors in the original - I was afraid I would, which would wreck this project since I didn't want to re-implement some obviously wrong algorithms. One place that did bother me, but is only a small difference, is the non-standard `rgb2gray` conversion traced back to the MATLAB routine.
 
-Some choices needed:
+There is still likely some small bug since I am off by 0.001 max error on the LIVE dataset test above.
 
-1. The Gaussian is normalized
-2. 
-
-Note C#/C++ numeric things for ports
-
-gaussian normalized - write more items here
-
-to use: sRGB, gamma 2.2 TODO?, use the given grayscale, not sure about color yet...
-
-important  - did not have to add bugs! (well, except the weird rgb2gray)
-
-With such large and inconsistent variation you cannot rely on published SSIM values without lots of legwork to figure out what they did, perhaps having to redo their work.
-
-How did I make mine? TODO - rev engineered, careful math, noting each psosible interprestation of the paper, and tresting the combinations to find this one. Final bug somewhere allowing max error of 0.001, which should not exist. matlab proprietary hard for people to use
-
-1. add links to https://github.com/ChrisLomont/SSIM
-2. https://lomont.org/posts/2023/ssim/
+To port to another platform, be sure you understand how C# and C++ handle numerics. Different languages handle integer division differently (C# and C++ keep as an integer, round towards 0) (some languages convert to floating point or have different rounding conventions).
 
 # References
 
@@ -161,21 +138,3 @@ How did I make mine? TODO - rev engineered, careful math, noting each psosible i
 
 [3] Zhou Wang, Ligang Lu, Alan C. Bovik, "[Video quality assessment based on structural distortion measurement](https://www.sciencedirect.com/science/article/abs/pii/S0923596503000766)", 2004.
 
-
-
-# TODO - 
-
-1. code prepared (C++, C#)
-
-   1. c++ history in header
-   2. match comments in C++/C# code
-
-2. c++ performance - use pointers and referecnes?
-
-3. edit files to self link
-
-4. pub to blog and github
-
-5. update code on old website - add link or forwarding?
-
-   
