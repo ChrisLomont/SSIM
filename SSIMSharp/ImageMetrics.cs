@@ -24,46 +24,158 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
-// Compute Structural Similarity Index (SSIM) image quality metrics                                                                                 
-// See http://www.ece.uwaterloo.ca/~z70wang/research/ssim/                                                                                          
-// Also computes PSNR, MSE, RMSE image quality metrics
-// C++ and C# implementations Copyright Chris Lomont 2009-2023                                                                                        
-// based on my old C# code at https://lomont.org/software/misc/ssim/SSIM.html
-// Send fixes and comments to WWW.LOMONT.ORG                                                                                                        
+/*
+  Structural Similarity Index image quality metric (SSIM)
+  See http://www.ece.uwaterloo.ca/~z70wang/research/ssim/
+  Also computes PSNR, MSE, RMSE image quality metrics
+  C++ and C# implementations Copyright Chris Lomont 2009-2023
+  based on my old C# code at https://lomont.org/software/misc/ssim/SSIM.html
+  code lives at https://github.com/ChrisLomont/SSIM
+  blog post at https://lomont.org/posts/2023/ssim/
+  Send fixes and comments to WWW.LOMONT.ORG
+*/
+
+/* Notes:
+ todo - sync
+not designed for performance - designed to be correct and portable - compare your high erpformance ones to this to ensure quality matches
+Notes:
+- these operate on single channel grayscale
+- often called Y-PSNR, Y-SSIM, etc.
+- to do color: explain....
+- See SSIM notes below for a lot of issues with SSIM in general
+- todo - my blog post
+- example code, say loading stbi headers, etc..
+
+/* Usage
+ * # https://stackoverflow.com/questions/71567315/how-to-get-the-ssim-comparison-score-between-two-images
+
+ # images and test values from https://www.cns.nyu.edu/~lcv/ssim/
+
+
+ # refimgs\studentsculpture.bmp jp2k\img2.bmp 0.981891
+
+ *
+ * mostly wrong
+ 1. Most of these metrics operate on a grayscale image
+ 2. Grayscale should be in linear space, except possibly for SSIM, which did not define a color space in the paper. Use gamma 2.2 there sees ok
+ 3. These are sometimes called Y-MSE, Y-PSNR, Y-SSIM, for the Y (grayscale) channel
+ 4. Simple helpers are provides for sRGB gamma to linear and linear rgb to grayscale (rec601)
+ TODO
+ 1. explain how to do color, how most are Y-SSIM, Y-MSE, etc. avg colors?
+ 2. include self tests
+ 3. simple grayscale, gamma (sRGB, 2.2?)
+ 4. explain image formats, what color space they generally are in
+ 5. incporporate test PNG https://upload.wikimedia.org/wikipedia/commons/c/c9/Srgbnonlinearity.png, save as PPM?
+ 6. Simple usage code example
+ */
+
+
+/* SSIM Notes
+
+Test images at http://www.cns.nyu.edu/~lcv/ssim/#test
+also has (no longer linked) full database of images and SSIM scores
+
+SSIM:
+     x = {x1,x2,...,xN}, y = {y1,y2,...,yN} discrete, non-negative signals (images, etc.)
+     ux, uy = mean of x and y, = (1/N) Sum xi
+     σx^2, σy^2 = variance = (1/(N-1)) Sum(xi-ux)^2
+     σxy = covariance = (1/(N-1))Sum(xi-ux))(yi-uy)
+     then luminance, contrast, structure comparison measures:
+
+     l(x,y) = (2 ux uy + C1)/(ux^2 + uy^2 + C1)
+     c(x,y) = (2 σx σy + C2)/(σx^2 + σy^2 + C2)
+     s(x,y) = (σxy + C3) / (σx σy + C3)
+
+     C1 = (K1 L)^2, C2 = (K2 L)^2, C3 = C2/2
+
+     L = dynamic range of values (255 for 8 bit pixels, 1 for 0-1 floating point, ...)
+
+     K1, K2 << 1 (todo - what is std def?)
+
+     SSIM(x,y) = l(x,y)^α * c(x,y)^β * s(x,y)^γ
+
+     α = β = γ = 1 sets all three components equally important
+
+     1. SSIM(x,y) = SSIM(y,x)
+     2. SSIM(x,y) <= 1
+     3. SSIM(x,y) = 1 iff x = y
+
+     for MSSIM (mean SSIM)
+     Compute over all M of the BxB subimages in image, return average of these. Paper (3) used B = 8
+
+     paper (1) uses C1 = C2 = 0, but can div by 0, unstable, so (3) sets K1 = 0.01 and K2 = 0.03
+     todo - get paper refs
+
+     (3) added 11x11 gaussian weighting function wi, std dev 1.5 samples, normalized to sum(wi) = 1
+     then use
+     mean = Sum wi * xi
+      std dev = sqrt(variance) = sqrt( Sum wi (xi-ux)^2 )
+     σxy = covariance = Sum wi * (xi-ux))(yi-uy)
+
+     (1) Z. Wang and A. C. Bovik, “A universal image quality index,” IEEE Signal Processing Letters, vol. 9, pp. 81–84, Mar. 2002.
+     (2) "MULTI-SCALE STRUCTURAL SIMILARITY FOR IMAGE QUALITY ASSESSMENT", Wang, Simoncelli, Bovik, 2003,
+         https://ece.uwaterloo.ca/~z70wang/publications/msssim.pdf
+     (3) Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: From error measurement to structural similarity,”
+         IEEE Trans. Image Processing, vol. 13, Jan. 2004. https://www.cns.nyu.edu/pub/lcv/wang03-preprint.pdf
+     (4) "Understanding SSIM," Jim Nillson and Tomas Akenine-Moller, 2020 https://arxiv.org/pdf/2006.13846.pdf
+     (5) "Mean Squared Error: Love It or Leave It?," Wang, Bovik, 2009, https://ece.uwaterloo.ca/~z70wang/publications/SPM09.pdf
+
+       NOTE from (4), "The input color space of SSIM is never defined. As the
+       reference Matlab script performs no color space transformations on
+       inputs, our assumption throughout this paper is that all images
+       are encoded in sRGB color space, i.e., approximately gamma
+       encoded with an exponent ≈ 2.4. Note that this means that an
+       image that is loaded by the SSIM script is assumed to be viewed
+       directly on screen as is. For two images A and B, the original
+       formula [19] for per-pixel SSIM is given by
+
+
+       matlab rgb2gray 0.2989 * R + 0.5870 * G + 0.1140 * B https://www.mathworks.com/help/matlab/ref/rgb2gray.html
+       Rec.ITU-R BT.601-7 calculates E'y using the following formula:
+       0.299 * R + 0.587 * G + 0.114 * B
+
+     
+
+TODO:
+- add MS-SSIM, CW-SSIM
+c++ reuse gaussian filter?
+            // 3 channel PSNR idea https://dsp.stackexchange.com/questions/71845/defining-the-snr-or-psnr-for-color-images-3-channel-rgb-files
+            // see also https://groups.google.com/g/sci.image.processing/c/0iypIGoJf7g
+
+
+
+ */
 
 /* History:
  * June 2023
- * 0.93 - Fix to ensure matches original on common datasets  
- *        TODO - see (provide link to blog post, github)
+ * 0.93 - Fix to ensure matches original on common datasets 
  *
  * Jan 2019
  * 0.92 - Made C++ version in parallel
  *      - Removed dependency on non dotnet CORE things
  *      - Made API static to make easier to use
- *      - added MSE, RMSE, PSNR to add more simple metrics
- *      - renamed to ImageMetrics.cs
+ *      - added MSE, RMSE, PSNR metrics for ease of use
+ *      - renamed to ImageMetrics.cs/.h
  *
- * June 2011                                                                                                                                        
- * 0.91 - Fix to Bitmap creation to prevent locking file handles                                                                                    
- *                                                                                                                                                  
- * Sept 2009                                                                                                                                        
- * 0.9  - Initial Release                                                                                                                           
- *                                                                                                                                                  
+ * June 2011
+ * 0.91 - Fix to Bitmap creation to prevent locking file handles
+ *
+ * Sept 2009
+ * 0.9  - Initial Release
+ *
  */
-
-
 
 namespace Lomont.Graphics;
 
 public static class ImageMetrics
 {
-    /// <summary>                                                                                                                               
-    /// version of the ImageMetrics code                                                                                                            
-    /// </summary>                                                                                                                              
+    /// <summary>
+    /// version of the ImageMetrics code
+    /// </summary>
     public static string Version => "0.93";
 
     /// <summary>
-    /// get grayscale pixel in 0-1
+    /// get grayscale pixel in 0-1 from image index i,j
     /// </summary>
     public delegate double GetPixel (int i, int j);
 
@@ -79,23 +191,18 @@ public static class ImageMetrics
         return Math.Sqrt(Mse(width, height, getPixel1, getPixel2));
     }
 
-    // compute Peak Signal-to-Noise Ratio
+    // Peak Signal-to-Noise Ratio
     public static double Psnr(int width, int height, GetPixel getPixel1, GetPixel getPixel2)
     {
-        // 3 channel PSNR idea https://dsp.stackexchange.com/questions/71845/defining-the-snr-or-psnr-for-color-images-3-channel-rgb-files
-        // see also https://groups.google.com/g/sci.image.processing/c/0iypIGoJf7g
-        double mse = Mse(width, height, getPixel1, getPixel2);
-        // todo - mse ~ 0 case
-        return 10.0 * Math.Log10(1.0 / mse);
+        // for MSE = 0, gives inf (or nan?)
+        return 10.0 * Math.Log10(1.0 / Mse(width, height, getPixel1, getPixel2));
     }
 
 
-    // compute SSIM from greyscale single plane image, colors in range 0-1
-
-    // compute SSIM on one channel
-    // expects grayscale, linear color space
+    // compute SSIM from a single channel of pixels in [0,1]
+    // see notes for color space, gamma, rgb to gray conversions, etc.
     public static double Ssim(
-        int width, int height, 
+        int width, int height,
         GetPixel getPixel1, GetPixel getPixel2,
         double L = 1.0,   // color depth - 255 for bytewise
         // constants from the paper, with default values
@@ -108,7 +215,8 @@ public static class ImageMetrics
 
     // mimic MATLAB rgb2gray https://www.mathworks.com/help/matlab/ref/rgb2gray.html
     // note this uses a weird convention of 0.2989 for the coefficient of red instead
-    // of the coefficient 0.299
+    // of the coefficient 0.299. Use this for RGB (in [0,1] per channel) to grayscale 
+    // to match original algorithm
     public static double Rgb2Gray(double r, double g, double b)
     {
         return  0.2989 * r + 0.5870 * g + 0.1140 * b;
@@ -134,60 +242,9 @@ public static class ImageMetrics
         return sum / (width* height);
     }
 
-#if false // todo - remove
-        /// <summary>                                                                                                                               
-        /// Compute from two linear ushort grayscale images with given size and bitdepth                                                            
-        /// </summary>                                                                                                                              
-        /// <param name="img1">Image 1 data</param>                                                                                                 
-        /// <param name="img2">Image 2 data</param>                                                                                                 
-        /// <param name="w">width</param>                                                                                                           
-        /// <param name="h">height</param>                                                                                                          
-        /// <param name="depth">Bit depth (1-16)</param>                                                                                            
-        /// <returns></returns>                                                                                                                     
-        internal double Index(ushort[] img1, ushort[] img2, int w, int h, int depth)
-        {
-            L = (1 << depth) - 1;
-            return ComputeSSIM(ConvertLinear(img1, w, h), ConvertLinear(img2, w, h));
-        }
-
-        /// <summary>                                                                                                                               
-        /// Take two System.Drawing.Bitmaps                                                                                                         
-        /// </summary>                                                                                                                              
-        /// <param name="img1"></param>                                                                                                             
-        /// <param name="img2"></param>                                                                                                             
-        /// <returns></returns>                                                                                                                     
-        internal double Index(Bitmap img1, Bitmap img2)
-        {
-            L = 255; // todo - this assumes 8 bit, but color conversion later is always 8 bit, so ok?                                               
-            return ComputeSSIM(ConvertBitmap(img1), ConvertBitmap(img2));
-        }
-
-        /// <summary>                                                                                                                               
-        /// Take two filenames                                                                                                                      
-        /// </summary>                                                                                                                              
-        /// <param name="filename1"></param>                                                                                                        
-        /// <param name="filename2"></param>                                                                                                        
-        /// <returns></returns>                                                                                                                     
-        internal double Index(string filename1, string filename2)
-        {
-            using (var b1 = new Bitmap(filename1))
-            using (var b2 = new Bitmap(filename2))
-                return Index(b1, b2);
-        }
-#endif
-
-
-    #region Locals                                                                                                                              
-    // default settings, names from paper                                                                                                       
-    //internal double K1 = 0.01, K2 = 0.03;
-    //internal double L = 255;
-    //readonly Array2D window = Gaussian(11, 1.5);
-    #endregion
-
     // compute SSIM on one channel
-    // expects grayscale, linear color space
     static double ComputeSsim(
-        int width, int height, 
+        int width, int height,
         GetPixel getPixel1, GetPixel getPixel2,
         // constants from the paper, with default values
         double L = 1.0,   // color depth - 255 for bytewise?
@@ -199,19 +256,14 @@ public static class ImageMetrics
         Array2D img1 = new(width, height, getPixel1);
         Array2D img2 = new(width, height, getPixel2);
 
-        // uses notation from paper                                                                                                             
-        // automatic downsampling                                                                                                               
+        // automatic downsampling
         int f = (int)Math.Max(1, Math.Round(Math.Min(width, height) / 256.0));
         if (f > 1)
-        {         
+        {
             // simple low-pass filter, subsamples by f
             img1 = SubSample(img1, f);
             img2 = SubSample(img2, f);
         }
-
-        // normalize window - todo - do in window set {}                                                                                        
-        double scale = 1.0 / window.Total;
-        Array2D.Op((i, j) => window[i, j] * scale, window);
 
         // image statistics
         var mu1 = Filter(img1, window);
@@ -231,13 +283,12 @@ public static class ImageMetrics
 
         // average all values
         return ssimMap.Total / (ssimMap.Width * ssimMap.Height);
-    } // ComputeSSIM                                                                                                                    
+    } // ComputeSSIM
 
 
-    #region Array2D                                                                                                                                
-    /// <summary>                                                                                                                               
-    /// Hold a array2d of doubles as an array with appropriate operators                                                                           
-    /// </summary>                                                                                                                              
+    /// <summary>
+    /// Hold a 2D array of doubles, provide relevant operations
+    /// </summary>
     class Array2D
     {
         readonly double[,] data;
@@ -263,7 +314,7 @@ public static class ImageMetrics
             }
         }
 
-        // Indexer for the i,j item                                                                                                        
+        // Indexer for the i,j item
         internal double this[int i, int j]
         {
             get => data[i, j];
@@ -281,13 +332,13 @@ public static class ImageMetrics
             }
         }
 
-        // componentwise addition of array2d                                                                                                     
+        // componentwise addition of array2d
         public static Array2D operator +(Array2D a, Array2D b)
         {
             return Op((i, j) => a[i, j] + b[i, j], new Array2D(a.Width, a.Height));
         }
 
-        // componentwise subtraction of array2d                                                                                                  
+        // componentwise subtraction of array2d
         public static Array2D operator -(Array2D a, Array2D b)
         {
             return Op((i, j) => a[i, j] - b[i, j], new Array2D(a.Width, a.Height));
@@ -304,21 +355,21 @@ public static class ImageMetrics
             return Op((i, j) => val + b[i, j], new Array2D(b.Width, b.Height));
         }
 
-        // componentwise multiplication of array2d                                                                                               
+        // componentwise multiplication of array2d
         public static Array2D operator *(Array2D a, Array2D b)
         {
             return Op((i, j) => a[i, j] * b[i, j], new Array2D(a.Width, a.Height));
         }
 
-        // componentwise division of array2d                                                                                                     
+        // componentwise division of array2d
         public static Array2D operator /(Array2D a, Array2D b)
         {
             return Op((i, j) => a[i, j] / b[i, j], new Array2D(a.Width, a.Height));
         }
 
-        /// <summary>                                                                                                                           
-        /// Generic function maps (i,j) onto the given array2d                                                                                     
-        /// </summary>                                                                                                                          
+        /// <summary>
+        /// Generic function maps (i,j) onto the given array2d
+        /// </summary>
         public static Array2D Op(Func<int, int, double> f, Array2D g)
         {
             int w = g.Width, h = g.Height;
@@ -328,8 +379,7 @@ public static class ImageMetrics
             return g;
         }
 
-    } // class Array2d                                                                                                                         
-    #endregion //Array2d                                                                                                                           
+    } // class Array2d
 
     // Apply filter to signal, return only center part.
     // filter should be odd sized
@@ -366,12 +416,10 @@ public static class ImageMetrics
         return c;
     }
 
-    /// <summary>                                                                                                                               
-    /// Create a gaussian window of the given size and standard deviation                                                                       
-    /// </summary>                                                                                                                              
-    /// <param name="size">Odd number</param>                                                                                                   
-    /// <param name="sigma">Gaussian std deviation</param>                                                                                      
-    /// <returns></returns>                                                                                                                     
+    /// <summary>
+    /// Create a normalized Gaussian window of the given size and 
+    /// standard deviation. Size must be odd
+    /// </summary>
     static Array2D Gaussian(int size, double sigma)
     {
         Array2D filter = new(size, size);
@@ -379,16 +427,12 @@ public static class ImageMetrics
         int c = size / 2;
         filter = Array2D.Op(
             (i,j)=>
-                
+
             {
                 double dx = i - c;
                 double dy = j - c;
                 return Math.Exp((-(dx * dx + dy * dy) / s2));
             }, filter);
-
-        // Note original SSIM paper does not normalize the filter
-        // But to get same results it is required
-
         return (1.0 / filter.Total) * filter;
     }
 
@@ -401,10 +445,10 @@ public static class ImageMetrics
         return val;
     }
 
-    /// <summary>                                                                                                                               
-    /// subsample a grid by step size, averaging each box into the result value                                                                 
-    /// </summary>                                                                                                                              
-    /// <returns></returns>                                                                                                                     
+    /// <summary>
+    /// subsample a grid by step size, averaging each box into the result value
+    /// </summary>
+    /// <returns></returns>
     static Array2D SubSample(Array2D img, int size)
     {
         int ow = img.Width;
@@ -439,14 +483,9 @@ public static class ImageMetrics
         }
         return ans;
     }
-
-    
-                                                                                                                   
-
     #endregion
+} // class SSIM
+// namespace Lomont
 
-} // class SSIM                                                                                                                             
-// namespace Lomont                                                                                                                           
-
-// end of file                                                                                                                                      
+// end of file
 

@@ -152,8 +152,7 @@ void TestSSIM_LIVE(const string& datasetPath)
 		maxerr = max(err, maxerr);
 		totalerr += err;
 		++count;
-		string stt = format("{} {} SSIM {}: correct {:0.6f} obtained {:0.6f} (max {:0.5f}, avg {0.5f})", split[0], split[1], count, score, ssim_score, maxerr, totalerr / count);
-		cout << stt << endl;
+		cout << format("{} {} SSIM {}: correct {:0.6f} obtained {:0.6f} (max {:0.5f} avg {:0.5f})", split[0], split[1], count, score, ssim_score, maxerr, totalerr/count)  << endl;
 	}
 	cout << format("Done max err {} avg err {} over {} items", maxerr, totalerr / count, count) << endl;
 }
